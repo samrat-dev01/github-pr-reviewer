@@ -1,0 +1,30 @@
+{
+  "name": "pr-reviewer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "review:local": "tsx --env-file=.env src/index.ts",
+    "review:pr": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "^5.0.2"
+  },
+  "dependencies": {
+    "@octokit/rest": "^22.0.1",
+    "dotenv": "^18.0.4",
+    "fast-glob": "^3.3.3",
+    "minimatch": "^10.2.6",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
+  }
+}

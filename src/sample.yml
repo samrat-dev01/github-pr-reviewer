@@ -1,0 +1,53 @@
+name: PR Auto Review
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      # Target repo at the PR head commit, so line numbers match the diff.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      # The reviewer itself, in a separate folder.
+      - uses: actions/checkout@v4
+        with:
+          repository: YOUR_ORG/pr-reviewer
+          path: .pr-reviewer
+          token: ${{ secrets.REVIEWER_REPO_TOKEN }}   # only needed if the reviewer repo is private
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Install ONLY the reviewer's deps. Never run npm install in the target repo.
+      - run: npm ci --ignore-scripts
+        working-directory: .pr-reviewer
+
+      # Optional tools; the reviewer skips any that are missing.
+      - run: pipx install semgrep
+      - run: |
+          VERSION=8.x.y   # set to the latest release from github.com/gitleaks/gitleaks/releases
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
+          sudo mv gitleaks /usr/local/bin/
+
+      - run: npm run review:pr
+        working-directory: .pr-reviewer
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+          REPO_ROOT: ${{ github.workspace }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
