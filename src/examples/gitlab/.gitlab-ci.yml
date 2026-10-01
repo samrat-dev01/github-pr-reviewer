@@ -1,0 +1,26 @@
+# Copy this file to .gitlab-ci.yml in the TARGET repo's root.
+
+pr-review:
+  image: node:22
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  variables:
+    GIT_DEPTH: "0"   # full history, needed for unusual-change detection
+    VCS_PLATFORM: gitlab
+    VCS_BASE_URL: "https://gitlab.com"          # change if self-hosted
+    VCS_TOKEN: "$VCS_TOKEN"
+    PR_NUMBER: "$CI_MERGE_REQUEST_IID"
+    REPOSITORY: "$CI_PROJECT_PATH"
+    REPO_ROOT: "$CI_PROJECT_DIR"
+    LLM_BASE_URL: "https://ollama.com"
+    LLM_MODEL: "gpt-oss:120b-cloud"
+    LLM_API_KEY: "$LLM_API_KEY"
+  before_script:
+    - git clone --branch v1.0.0 --depth 1 https://github.com/YOUR_USERNAME/pr-reviewer.git .pr-reviewer
+    - cd .pr-reviewer && npm ci --ignore-scripts && cd ..
+  script:
+    - cd .pr-reviewer && npm run review:pr
+
+# Required CI/CD variables (Settings → CI/CD → Variables, mark as Masked):
+#   VCS_TOKEN     - GitLab personal/project access token (api scope)
+#   LLM_API_KEY   - Ollama Cloud API key

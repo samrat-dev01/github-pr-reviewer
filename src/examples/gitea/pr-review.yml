@@ -1,0 +1,51 @@
+# Copy this file to .gitea/workflows/pr-review.yml in the TARGET repo.
+# Requires Gitea Actions enabled instance-wide AND a registered act_runner.
+# If Actions is disabled on your instance, use the webhook server instead
+# (src/webhook-server.ts) — see examples/gitea/README-webhook.md.
+
+name: PR Auto Review
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target repo (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout pr-reviewer
+        uses: actions/checkout@v4
+        with:
+          repository: YOUR_USERNAME/pr-reviewer
+          ref: v1.0.0
+          path: .pr-reviewer
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install reviewer dependencies only
+        run: npm ci --ignore-scripts
+        working-directory: .pr-reviewer
+
+      - name: Run PR review
+        run: npm run review:pr
+        working-directory: .pr-reviewer
+        env:
+          VCS_PLATFORM: gitea
+          VCS_BASE_URL: https://git.yourcompany.example
+          VCS_TOKEN: ${{ secrets.VCS_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}   # Gitea Actions keeps GitHub-compatible context names
+          REPOSITORY: ${{ github.repository }}
+          REPO_ROOT: ${{ github.workspace }}
+          LLM_BASE_URL: https://ollama.com
+          LLM_MODEL: gpt-oss:120b-cloud
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+
+# Required repo secrets (Settings → Actions → Secrets):
+#   VCS_TOKEN     - Gitea personal access token (issue + pull request + repository scopes)
+#   LLM_API_KEY   - Ollama Cloud API key

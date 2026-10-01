@@ -1,0 +1,41 @@
+# Copy this file to .pr-reviewer.yml in the TARGET repo's root, on the
+# default branch. Platform-agnostic — same file works for GitHub, Gitea,
+# and GitLab. Read from the BASE branch, so a PR cannot loosen its own rules.
+
+thresholds:
+  inline: 0.9
+  summary: 0.7
+
+limits:
+  largeDiffLines: 800
+  largeFileLines: 600
+  maxFunctionLines: 80
+  maxComplexity: 15
+  maxParams: 6
+  maxInline: 10
+
+ignore:
+  - "**/node_modules/**"
+  - "**/dist/**"
+  - "**/build/**"
+  - "**/*.min.js"
+
+history:
+  maxCommits: 500
+  moduleDepth: 2
+  minSamples: 5
+
+llm:
+  enabled: true
+  maxCalls: 10
+
+architecture:
+  layers:
+    controller: { paths: ["src/controller/**", "src/**/*.controller.ts"] }
+    service:    { paths: ["src/service/**", "src/**/*.service.ts"] }
+    repository: { paths: ["src/repository/**", "src/**/*.repository.ts"] }
+    database:   { packages: ["pg", "mysql2", "mongoose", "@prisma/client"] }
+  rules:
+    - { from: controller, cannotImport: [repository, database] }
+    - { from: service,    cannotImport: [controller] }
+    - { from: repository, cannotImport: [controller, service] }
