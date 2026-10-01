@@ -2,11 +2,11 @@
   "name": "pr-reviewer",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "review.js",
   "scripts": {
-    "review:local": "tsx --env-file=.env src/index.ts",
-    "review:pr": "tsx src/index.ts",
-    "webhook:server": "tsx --env-file=.env src/webhook-server.ts",
+    "review:local": "tsx --env-file=.env src/review.ts",
+    "review:pr": "tsx src/review.ts",
+    "server:start": "tsx --env-file=.env src/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
