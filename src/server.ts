@@ -34,7 +34,7 @@ function getPlatformSettings(platform: Platform): PlatformSettings | undefined {
 
     switch (platform) {
         case "github": {
-            const token = process.env.GITHUB_TOKEN ?? universalToken;
+            const token = universalToken;
             if (!token) return undefined;
             return {
                 webhookSecret: process.env.GITHUB_WEBHOOK_SECRET ?? process.env.WEBHOOK_SECRET ?? "",
@@ -42,7 +42,7 @@ function getPlatformSettings(platform: Platform): PlatformSettings | undefined {
             };
         }
         case "gitea": {
-            const token = process.env.GITEA_TOKEN ?? universalToken;
+            const token = universalToken;
             if (!token) return undefined;
             return {
                 webhookSecret: process.env.GITEA_WEBHOOK_SECRET ?? process.env.WEBHOOK_SECRET ?? "",
@@ -51,7 +51,7 @@ function getPlatformSettings(platform: Platform): PlatformSettings | undefined {
             };
         }
         case "gitlab": {
-            const token = process.env.GITLAB_TOKEN ?? universalToken;
+            const token = universalToken;
             if (!token) return undefined;
             return {
                 webhookSecret: process.env.GITLAB_WEBHOOK_SECRET ?? process.env.WEBHOOK_SECRET ?? "",
@@ -183,7 +183,7 @@ const PORT = process.env.PORT ?? 4000;
 
 app.listen(PORT, () => {
     console.log(`Webhook server listening on :${PORT}`);
-    console.log(`  POST /webhook/github  → ${getPlatformSettings("github") ? "configured" : "not configured (set GITHUB_TOKEN | VCS_TOKEN)"}`);
-    console.log(`  POST /webhook/gitea   → ${getPlatformSettings("gitea") ? "configured" : "not configured (set GITEA_TOKEN | VCS_TOKEN)"}`);
-    console.log(`  POST /webhook/gitlab  → ${getPlatformSettings("gitlab") ? "configured" : "not configured (set GITLAB_TOKEN | VCS_TOKEN)"}`);
+    console.log(`  POST /webhook/github  → ${getPlatformSettings("github") ? "configured" : "not configured (set VCS_TOKEN)"}`);
+    console.log(`  POST /webhook/gitea   → ${getPlatformSettings("gitea") ? "configured" : "not configured (set VCS_TOKEN)"}`);
+    console.log(`  POST /webhook/gitlab  → ${getPlatformSettings("gitlab") ? "configured" : "not configured (set VCS_TOKEN)"}`);
 });

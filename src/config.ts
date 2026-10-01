@@ -4,22 +4,21 @@ import { Platform } from "./vcs/types.js";
 
 const schema = z.object({
   // Generic VCS auth — works for any platform
-  VCS_TOKEN: z.string().min(1, "VCS_TOKEN is required").optional(),
-  GITHUB_TOKEN: z.string().min(1).optional(), // kept for backward compatibility
+  VCS_TOKEN: z.string().min(1, "VCS_TOKEN is required"),
 
   REPOSITORY: z.string().regex(/^[^/]+\/[^/]+$/, "REPOSITORY must be owner/repo"),
   PR_NUMBER: z.coerce.number().int().positive(),
   REPO_ROOT: z.string().optional(),
 
-  LLM_BASE_URL: z.string().url().default("http://localhost:11434"),
-  LLM_MODEL: z.string().optional(),
-  LLM_API_KEY: z.string().optional(),
+  LLM_BASE_URL: z.url().default("https://ollama.com"),
+  LLM_MODEL: z.string().optional().default("gpt-oss:120b-cloud"),
+  LLM_API_KEY: z.string(),
 
   VCS_PLATFORM: z.enum(["github", "gitea", "gitlab"]).default("github"),
-  VCS_BASE_URL: z.string().url().optional(), // required for gitea/gitlab, checked below
+  VCS_BASE_URL: z.url().optional(), // required for gitea/gitlab, checked below
 })
-  .refine((d) => d.VCS_TOKEN ?? d.GITHUB_TOKEN, {
-    message: "VCS_TOKEN (or GITHUB_TOKEN for the github platform) is required",
+  .refine((d) => d.VCS_TOKEN, {
+    message: "VCS_TOKEN is required",
     path: ["VCS_TOKEN"],
   })
   .refine((d) => d.VCS_PLATFORM === "github" || !!d.VCS_BASE_URL, {
@@ -46,7 +45,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
   const d = parsed.data;
   const [owner, repo] = d.REPOSITORY.split("/");
-  const token = d.VCS_TOKEN ?? d.GITHUB_TOKEN!; // refine() guarantees one is set
+  const token = d.VCS_TOKEN!; // refine() guarantees one is set
 
   return {
     owner,
