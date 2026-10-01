@@ -5,6 +5,7 @@ import { severityRank, type Finding } from "../review/types.js";
 import { redact } from "../utils/secrets.js";
 import type { LlmClient } from "./client.js";
 import { VerdictSchema } from "./schema.js";
+import { logLlmCall } from "./usage-logger.js";
 
 const SYSTEM = [
     "You verify findings produced by static analysis of a pull request.",
@@ -23,25 +24,47 @@ const SYSTEM = [
 ].join("\n");
 
 const isCandidate = (f: Finding) =>
-    f.source !== "llm" && !!f.file && !!f.startLine &&
-    f.confidence >= 0.5 && f.confidence < 0.9 &&
-    f.category !== "dependency" && !f.ruleId.includes("secret") && !f.ruleId.startsWith("gitleaks");
+    f.source !== "llm" &&
+    !!f.file &&
+    !!f.startLine &&
+    f.confidence >= 0.5 &&
+    f.confidence < 0.9 &&
+    f.category !== "dependency" &&
+    !f.ruleId.includes("secret") &&
+    !f.ruleId.startsWith("gitleaks");
 
 async function snippet(ctx: AnalysisContext, f: Finding): Promise<string> {
     const text = await fs.readFile(path.join(ctx.repoRoot, f.file!), "utf8");
     const lines = text.split("\n");
     const from = Math.max(1, f.startLine! - 15);
     const to = Math.min(lines.length, (f.endLine ?? f.startLine!) + 15);
-    return redact(lines.slice(from - 1, to).map((l, i) => `${from + i}: ${l}`).join("\n")).slice(0, 6000);
+    return redact(
+        lines
+            .slice(from - 1, to)
+            .map((l, i) => `${from + i}: ${l}`)
+            .join("\n"),
+    ).slice(0, 6000);
 }
 
-export async function verifyFindings(findings: Finding[], ctx: AnalysisContext, llm: LlmClient, maxCalls: number) {
+export async function verifyFindings(
+    findings: Finding[],
+    ctx: AnalysisContext,
+    llm: LlmClient,
+    maxCalls: number,
+) {
     const candidates = findings
         .filter(isCandidate)
-        .sort((a, b) => severityRank(b.severity) - severityRank(a.severity) || b.confidence - a.confidence)
+        .sort(
+            (a, b) =>
+                severityRank(b.severity) - severityRank(a.severity) ||
+                b.confidence - a.confidence,
+        )
         .slice(0, maxCalls);
+
     const updates = new Map<string, Finding>();
     let calls = 0;
+    let promptTokens = 0;
+    let completionTokens = 0;
 
     for (const f of candidates) {
         try {
@@ -49,8 +72,12 @@ export async function verifyFindings(findings: Finding[], ctx: AnalysisContext, 
                 "Verify this finding and respond with the required JSON object (all six keys).",
                 JSON.stringify({
                     finding: {
-                        ruleId: f.ruleId, category: f.category, severity: f.severity,
-                        title: f.title, message: f.message, evidence: f.evidence ?? [],
+                        ruleId: f.ruleId,
+                        category: f.category,
+                        severity: f.severity,
+                        title: f.title,
+                        message: f.message,
+                        evidence: f.evidence ?? [],
                     },
                     file: f.file,
                     code: await snippet(ctx, f),
@@ -61,25 +88,57 @@ export async function verifyFindings(findings: Finding[], ctx: AnalysisContext, 
             for (let attempt = 0; attempt < 2 && !verdict; attempt++) {
                 calls++;
                 try {
-                    const raw = await llm.chatJson(SYSTEM, prompt);
-                    verdict = VerdictSchema.parse(JSON.parse(raw));
+                    const result = await llm.chatJson(SYSTEM, prompt);
+                    promptTokens += result.promptTokens;
+                    completionTokens += result.completionTokens;
+
+                    logLlmCall({
+                        model: llm.opts.model, // expose this getter on LlmClient if not already public
+                        ruleId: f.ruleId,
+                        promptTokens: result.promptTokens,
+                        completionTokens: result.completionTokens,
+                        totalTokens: result.promptTokens + result.completionTokens,
+                        durationMs: result.durationMs,
+                    });
+
+                    verdict = VerdictSchema.parse(JSON.parse(result.content));
                 } catch (e) {
-                    console.warn(`[llm] ${f.ruleId} attempt ${attempt + 1} rejected: ${(e as Error).message.slice(0, 300)}`);
+                    console.warn(
+                        `[llm] ${f.ruleId} attempt ${attempt + 1} rejected: ${(e as Error).message.slice(0, 300)}`,
+                    );
                 }
             }
             if (!verdict) continue; // malformed twice: keep the finding unchanged
 
-            updates.set(f.id, verdict.valid
-                ? {
-                    ...f, verified: true, severity: verdict.severity,
-                    confidence: Math.min(0.97, 0.4 * f.confidence + 0.6 * verdict.confidence),
-                    message: verdict.comment, suggestion: verdict.suggestion || f.suggestion,
-                    evidence: [...(f.evidence ?? []), { kind: "llm-reason", detail: verdict.reason }],
-                }
-                : { ...f, verified: true, confidence: 0.2 }); // rejected -> filtered out later
+            updates.set(
+                f.id,
+                verdict.valid
+                    ? {
+                        ...f,
+                        verified: true,
+                        severity: verdict.severity,
+                        confidence: Math.min(
+                            0.97,
+                            0.4 * f.confidence + 0.6 * verdict.confidence,
+                        ),
+                        message: verdict.comment,
+                        suggestion: verdict.suggestion || f.suggestion,
+                        evidence: [
+                            ...(f.evidence ?? []),
+                            { kind: "llm-reason", detail: verdict.reason },
+                        ],
+                    }
+                    : { ...f, verified: true, confidence: 0.2 },
+            ); // rejected -> filtered out later
         } catch (e) {
             console.warn(`[llm] skipped ${f.ruleId}: ${(e as Error).message}`); // LLM down: degrade gracefully
         }
     }
-    return { findings: findings.map((f) => updates.get(f.id) ?? f), calls };
+
+    return {
+        findings: findings.map((f) => updates.get(f.id) ?? f),
+        calls,
+        promptTokens,
+        completionTokens,
+    };
 }

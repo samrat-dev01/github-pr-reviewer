@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-
+import { logPrRunSummary } from "./llm/usage-logger.js";
 import {
     runAnalyzers,
     type AnalysisContext,
@@ -45,6 +45,7 @@ export async function runReviewPipeline(
     baseConfig: Config,
     target: PipelineTarget,
 ): Promise<void> {
+    
     const config: Config = {
         ...baseConfig,
         owner: target.owner,
@@ -92,7 +93,9 @@ export async function runReviewPipeline(
             gitleaksAnalyzer,
             semgrepAnalyzer,
         ];
+
         let { findings, failures } = await runAnalyzers(analyzers, ctx);
+
         console.log(
             "RULE IDS:",
             findings.map(
@@ -100,21 +103,35 @@ export async function runReviewPipeline(
                     `${f.ruleId}${typeof f.startLine === "number" ? `:${f.startLine}` : ""}`,
             ),
         );
+
         let llm = { enabled: false, calls: 0 };
+
         if (repoCfg.llm.enabled && config.llm.model) {
             const client = new LlmClient({
                 baseUrl: config.llm.baseUrl,
                 model: config.llm.model,
                 apiKey: config.llm.apiKey,
             });
+
             const res = await verifyFindings(
                 findings,
                 ctx,
                 client,
                 repoCfg.llm.maxCalls,
             );
+
             findings = res.findings;
             llm = { enabled: true, calls: res.calls };
+
+            logPrRunSummary({
+                repository: `${config.owner}/${config.repo}`,
+                prNumber: config.prNumber,
+                model: config.llm.model,
+                calls: res.calls,
+                promptTokens: res.promptTokens,
+                completionTokens: res.completionTokens,
+                totalTokens: res.promptTokens + res.completionTokens,
+            });
         } else {
             console.log("LLM verification skipped (LLM_MODEL not set)");
         }
