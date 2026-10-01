@@ -183,7 +183,7 @@ const PORT = process.env.PORT ?? 4000;
 
 app.listen(PORT, () => {
     console.log(`Webhook server listening on :${PORT}`);
-    console.log(`  POST /webhook/github  → ${getPlatformSettings("github") ? "configured" : "not configured (set GITHUB_TOKEN)"}`);
-    console.log(`  POST /webhook/gitea   → ${getPlatformSettings("gitea") ? "configured" : "not configured (set GITEA_TOKEN)"}`);
-    console.log(`  POST /webhook/gitlab  → ${getPlatformSettings("gitlab") ? "configured" : "not configured (set GITLAB_TOKEN)"}`);
+    console.log(`  POST /webhook/github  → ${getPlatformSettings("github") ? "configured" : "not configured (set GITHUB_TOKEN | VCS_TOKEN)"}`);
+    console.log(`  POST /webhook/gitea   → ${getPlatformSettings("gitea") ? "configured" : "not configured (set GITEA_TOKEN | VCS_TOKEN)"}`);
+    console.log(`  POST /webhook/gitlab  → ${getPlatformSettings("gitlab") ? "configured" : "not configured (set GITLAB_TOKEN | VCS_TOKEN)"}`);
 });
